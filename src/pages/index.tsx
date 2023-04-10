@@ -1,17 +1,16 @@
 import { type NextPage } from "next";
+import { useSession } from "next-auth/react";
 import Head from "next/head";
-import Link from "next/link";
-import { signIn, signOut, useSession } from "next-auth/react";
 
-import { api, type RouterOutputs } from "~/utils/api";
-import Header from "~/components/Header";
 import { useState } from "react";
+import Header from "~/components/Header";
+import { NoteCard } from "~/components/NoteCard";
+import { NoteEditor } from "~/components/NoteEditor";
+import { api, type RouterOutputs } from "~/utils/api";
 
 type Topic = RouterOutputs["topic"]["getAll"][0];
 
 const Home: NextPage = () => {
-  const hello = api.example.hello.useQuery({ text: "from tRPC" });
-
   return (
     <>
       <Head>
@@ -43,9 +42,20 @@ const Content: React.FC = () => {
   );
 
   const createTopic = api.topic.create.useMutation({
-    onSuccess: () => {
-      void refetchTopics();
-    },
+    onSuccess: () => void refetchTopics(),
+  });
+
+  const { data: notes, refetch: refetchNotes } = api.note.getAll.useQuery(
+    { topicId: selectedTopic?.id ?? "" },
+    { enabled: !!sessionData?.user && !!selectedTopic }
+  );
+
+  const createNote = api.note.create.useMutation({
+    onSuccess: () => void refetchNotes(),
+  });
+
+  const deleteNote = api.note.delete.useMutation({
+    onSuccess: () => void refetchNotes(),
   });
 
   return (
@@ -81,7 +91,29 @@ const Content: React.FC = () => {
           }}
         />
       </div>
-      <div className="col-span-3"></div>
+      <div className="col-span-3">
+        <div className="col-span-3">
+          <div>
+            {notes?.map((note) => (
+              <div className="mt-5" key={note.id}>
+                <NoteCard
+                  note={note}
+                  onDelete={() => void deleteNote.mutate({ id: note.id })}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+        <NoteEditor
+          onSave={({ title, content }) => {
+            void createNote.mutate({
+              title,
+              content,
+              topicId: selectedTopic?.id ?? "",
+            });
+          }}
+        />
+      </div>
     </div>
   );
 };
